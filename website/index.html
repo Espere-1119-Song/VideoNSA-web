@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VideoNSA | Native Sparse Attention Scales Video Understanding</title>
+    <meta
+      name="description"
+      content="VideoNSA introduces Native Sparse Attention for multimodal LLMs, delivering six core findings on scaling, efficiency, and attention behavior in long-form video understanding."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top">
+    <header class="hero">
+      <div class="hero-content">
+        <div class="hero-copy">
+          <h1>Native Sparse Attention Scales<br />Video Understanding</h1>
+          <div class="hero-body">
+            <p>
+              Key moments in video surface without warning, yet current pipelines sample about 1 fps while humans perceive near 60 Hz. Adding frames helps on long, complex sequences but explodes tokens and hits context limits. We present VideoNSA, the first learnable, hardware-aware sparse-attention framework purpose-built for video. Building on Native Sparse Attention, it learns sparsity over video tokens while retaining grouped-query attention for text, scaling to 128K vision–text contexts and preserving decisive-moment fidelity and long-range coherence.
+            </p>
+            <div class="hero-visual hero-visual-inline">
+              <img src="assets/img/VideoNSA.png" alt="VideoNSA architecture overview" />
+            </div>
+          </div>
+          <div class="hero-actions">
+            <a class="cta primary" href="../main.pdf">Download Paper (PDF)</a>
+            <a class="cta secondary" href="https://huggingface.co/VideoNSA" target="_blank" rel="noopener">Model</a>
+            <a class="cta secondary" href="https://github.com/VideoNSA" target="_blank" rel="noopener">Code</a>
+            <a class="cta secondary" href="https://arxiv.org/abs/2501.01234" target="_blank" rel="noopener">arXiv</a>
+            <a class="cta secondary" href="#findings">Jump to Findings</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="authors" class="author-strip">
+        <div class="author-grid">
+          <div class="author-row primary">
+            <div class="author-card">
+              <a class="author-name" href="https://enxinsong.com/" target="_blank" rel="noopener">Enxin Song</a>
+              <span class="author-affiliation">UCSD</span>
+            </div>
+            <div class="author-card">
+              <a class="author-name" href="https://wenhaochai.com/" target="_blank" rel="noopener">Wenhao Chai</a>
+              <span class="author-affiliation">Princeton</span>
+            </div>
+            <div class="author-card">
+              <a class="author-name" href="https://scholar.google.com/citations?user=v6dmW5cntoMC" target="_blank" rel="noopener">Shusheng Yang</a>
+              <span class="author-affiliation">NYU</span>
+            </div>
+            <div class="author-card">
+              <a class="author-name" href="https://ethana.org/" target="_blank" rel="noopener">Ethan Armand</a>
+              <span class="author-affiliation">UCSD</span>
+            </div>
+            <div class="author-card">
+              <a class="author-name" href="https://shanxiaojun.github.io/" target="_blank" rel="noopener">Xiaojun Shan</a>
+              <span class="author-affiliation">UCSD</span>
+            </div>
+            <div class="author-card">
+              <a class="author-name" href="https://scholar.google.com/citations?user=ds8ZvyMAAAAJ&hl=en" target="_blank" rel="noopener">Haiyang Xu</a>
+              <span class="author-affiliation">UCSD</span>
+            </div>
+          </div>
+          <div class="author-row secondary">
+            <div class="author-card">
+              <a class="author-name" href="http://www.stat.ucla.edu/~jxie/" target="_blank" rel="noopener">Jianwen Xie</a>
+              <span class="author-affiliation">Lambda, Inc.</span>
+            </div>
+            <div class="author-card">
+              <a class="author-name" href="https://pages.ucsd.edu/~ztu/" target="_blank" rel="noopener">Zhuowen Tu</a>
+              <span class="author-affiliation">UCSD</span>
+            </div>
+          </div>
+        </div>
+        <div class="author-logos">
+          <img src="assets/school/UCSanDiegoLogo-BlueGold.svg" alt="UC San Diego" />
+          <img src="assets/school/PU_lockup.svg" alt="Princeton University" />
+          <img src="assets/school/Nyu_short_color.svg" alt="New York University" />
+          <img src="assets/school/lambda_logo_horizontal_black_with_white_glow.svg" alt="Lambda, Inc." />
+        </div>
+      </section>
+      <section id="introduction" class="section soft">
+        <div class="section-heading">
+          <h2>Contributions</h2>
+        </div>
+        <ul class="contrib-list">
+          <li>Introduce VideoNSA, a hardware-aware learnable sparse attention framework that scales vision contexts to 128K tokens.</li>
+          <li>Design a hybrid allocation strategy that dynamically balances compression, selection, and sliding-window branches to match task needs.</li>
+          <li>Demonstrate that branch-specific gating reduces attention sinks and keeps visual evidence flowing through deep layers.</li>
+        </ul>
+      </section>
+
+      <section id="method" class="section">
+        <div class="section-heading">
+          <h2>Method</h2>
+        </div>
+        <div class="method-figure">
+          <img src="assets/img/VideoNSA_method.png" alt="VideoNSA architecture diagram" class="method-graphic" />
+        </div>
+        <p class="method-overview">
+          VideoNSA builds on Qwen2.5-VL-7B. Each layer splits tokens by position IDs into vision and text paths:
+          text tokens follow grouped-query attention, while vision tokens run Native Sparse Attention with
+          compression, selection, and sliding-window branches fused by per-head two-layer MLP gates. Vision
+          tokens aggregate into frame blocks, pass through the three branches, and rejoin the text stream after
+          gating.
+        </p>
+        <div class="method-branches">
+          <div class="method-branch">
+            <h3>Compression Branch</h3>
+            <p>Maintains salient cues by averaging frame KV blocks and routing them through learnable gates, keeping compute budget linear in context length.</p>
+          </div>
+          <div class="method-branch">
+            <h3>Selection Branch</h3>
+            <p>Ranks candidate blocks by importance scores and retains the most informative segments, focusing attention on discriminative events.</p>
+          </div>
+          <div class="method-branch">
+            <h3>Sliding Window Branch</h3>
+            <p>Guarantees local temporal coverage with a lightweight windowed path so fine-grained motion details persist alongside global context.</p>
+          </div>
+        </div>
+        <p class="method-training">
+          We train VideoNSA end to end so the vision pathway learns data-dependent sparse connectivity inside the
+          language model. The dataset is a filtered split of LLaVA-Video-178K sampled at 4 fps, keeping clips with
+          350 to 550 frames for about 216K question–answer pairs. We set pixels per frame at 50,176 and limit each
+          training example to a 36K token context. Training uses block size 64, block count 32, and sliding window
+          256. The full training consumes roughly 4,600 H100 GPU hours.
+        </p>
+      </section>
+
+      <section id="findings" class="section soft">
+        <div class="section-heading">
+          <h2>Key Findings</h2>
+        </div>
+        <div class="finding-accordion">
+          <details class="finding-item">
+            <summary><span class="finding-number">01</span>Do learned sparse attention weights remain beneficial in dense attention settings?</summary>
+            <p><strong>Yes, but only partially. Sparse-trained QKV weights help under dense inference.</strong> The transferred Dense-NSA often surpasses Dense-SFT, indicating an inductive bias toward better attention distributions. However, gains are limited and inconsistent. The full VideoNSA with runtime sparsity and dynamic gating remains best, showing that improvements come from learned weights plus execution-time sparsity, not weight transfer alone.</p>
+            <figure class="finding-table">
+                            <iframe src="tab/nsa2full.html" title="Dense vs sparse performance" loading="lazy"></iframe>
+            </figure>
+          </details>
+          <details class="finding-item">
+            <summary><span class="finding-number">02</span>How far can VideoNSA scale in context length?</summary>
+            <p><strong>VideoNSA scales reliably to 128K vision–text contexts, with task-dependent budgeting.</strong> Trained at a smaller budget of 36K, VideoNSA generalizes beyond its training length and continues to improve as context grows. Under a fixed budget, the optimal split is task dependent: benchmarks emphasizing spatial detail prefer more tokens per frame, those emphasizing temporal coverage prefer more frames, and mixed settings show shifting preferences as length increases. This indicates that longer contexts benefit VideoNSA while it adapts to diverse spatiotemporal demands.</p>
+            <div class="finding-switch" data-default-caption="LongTimeScope" data-default-src="assets/img/findings/token_longtime.png">
+              <div class="switch-tabs">
+                <button class="switch-tab active" data-src="assets/img/findings/token_longtime.png" data-caption="LongTimeScope">LongTimeScope</button>
+                <button class="switch-tab" data-src="assets/img/findings/token_timescope.png" data-caption="TimeScope">TimeScope</button>
+                <button class="switch-tab" data-src="assets/img/findings/token_longvideo.png" data-caption="LongVideoBench">LongVideoBench</button>
+                <button class="switch-tab" data-src="assets/img/findings/token_mlvu.png" data-caption="MLVU">MLVU</button>
+                <button class="switch-tab" data-src="assets/img/findings/token_tomato.png" data-caption="Tomato">Tomato</button>
+                <button class="switch-tab" data-src="assets/img/findings/token_vsi.png" data-caption="VSIBench">VSIBench</button>
+              </div>
+              <figure class="switch-view">
+                <img src="assets/img/findings/token_longtime.png" alt="Token allocation on LongTimeScope" />
+                <figcaption>LongTimeScope</figcaption>
+              </figure>
+            </div>
+          </details>
+          <details class="finding-item">
+            <summary><span class="finding-number">03</span>How to allocate the attention budget?</summary>
+            <p><strong>Allocate toward global attention and tune near the training allocation.</strong> Model performance is highly sensitive to how the attention budget is split between global blocks and local sliding windows. Across tasks, settings close to the training ratio generally work best, and small fine-tunes around it help more than simply enlarging the overall budget. Under the same budget, increasing global attention typically outperforms increasing local attention. <strong>VideoNSA attains leading performance with only 3.6% of the full attention budget.</strong></p>
+            <div class="finding-switch finding-switch-large" data-default-caption="LongTimeScope" data-default-src="assets/img/findings/longtime_attention.png">
+              <div class="switch-tabs">
+                <button class="switch-tab active" data-src="assets/img/findings/longtime_attention.png" data-caption="LongTimeScope">LongTimeScope</button>
+                <button class="switch-tab" data-src="assets/img/findings/longvideo_attention.png" data-caption="LongVideoBench">LongVideoBench</button>
+                <button class="switch-tab" data-src="assets/img/findings/timescope_attention.png" data-caption="TimeScope">TimeScope</button>
+                <button class="switch-tab" data-src="assets/img/findings/mlvu_attention.png" data-caption="MLVU">MLVU</button>
+                <button class="switch-tab" data-src="assets/img/findings/tomato_attention.png" data-caption="Tomato">Tomato</button>
+                <button class="switch-tab" data-src="assets/img/findings/vsi_attention.png" data-caption="VSIBench">VSIBench</button>
+              </div>
+              <figure class="switch-view">
+                <img src="assets/img/findings/longtime_attention.png" alt="Attention allocation on LongTimeScope" />
+                <figcaption>LongTimeScope</figcaption>
+              </figure>
+            </div>
+          </details>
+          <details class="finding-item">
+            <summary><span class="finding-number">04</span>What roles do compression, selection, and sliding-window gates play in VideoNSA?</summary>
+            <p><strong>Compression Branch</strong> merges redundant tokens to preserve salient content and support long-range aggregation, <strong>Selection Branch</strong> routes attention sparsely to the most informative blocks for global context, and <strong>Sliding Window Branch</strong> enforces local temporal coverage and smooth frame-to-frame integration. <strong>Final Blend</strong> uses dynamic gates to mix these signals per head and layer.</p>
+            <div class="finding-layer-toggle" data-default="compression">
+              <div class="layer-mode-buttons">
+                <button class="layer-mode active" data-target="compression">Compression</button>
+                <button class="layer-mode" data-target="selection">Selection</button>
+                <button class="layer-mode" data-target="slidingwindow">Sliding Window</button>
+                <button class="layer-mode" data-target="final">Final Blend</button>
+              </div>
+              <div class="layer-mode-panel active" data-mode="compression">
+                <figure class="finding-layer" data-layer-prefix="assets/img/findings/nsa_modes/layer_" data-layer-suffix="_compression" data-layer-ext=".png" data-layer-min="1" data-layer-max="28" data-layer-pad="2" data-layer-label="Compression L">
+                  <img class="layer-frame" src="assets/img/findings/nsa_modes/layer_01_compression.png" alt="Compression gate behavior for layer L1" />
+                  <div class="layer-controls">
+                    <label><span class="layer-value">Compression L1</span></label>
+                    <input type="range" min="1" max="28" value="1" step="1" />
+                  </div>
+                  <!-- <figcaption>Compression gate statistics.</figcaption> -->
+                </figure>
+              </div>
+              <div class="layer-mode-panel" data-mode="selection" hidden>
+                <figure class="finding-layer" data-layer-prefix="assets/img/findings/nsa_modes/layer_" data-layer-suffix="_selection" data-layer-ext=".png" data-layer-min="1" data-layer-max="28" data-layer-pad="2" data-layer-label="Selection L">
+                  <img class="layer-frame" src="assets/img/findings/nsa_modes/layer_01_selection.png" alt="Selection gate behavior for layer L1" />
+                  <div class="layer-controls">
+                    <label><span class="layer-value">Selection L1</span></label>
+                    <input type="range" min="1" max="28" value="1" step="1" />
+                  </div>
+                  <!-- <figcaption>Selection gate statistics.</figcaption> -->
+                </figure>
+              </div>
+              <div class="layer-mode-panel" data-mode="slidingwindow" hidden>
+                <figure class="finding-layer" data-layer-prefix="assets/img/findings/nsa_modes/layer_" data-layer-suffix="_slidingwindow" data-layer-ext=".png" data-layer-min="1" data-layer-max="28" data-layer-pad="2" data-layer-label="Sliding L">
+                  <img class="layer-frame" src="assets/img/findings/nsa_modes/layer_01_slidingwindow.png" alt="Sliding window gate behavior for layer L1" />
+                  <div class="layer-controls">
+                    <label><span class="layer-value">Sliding L1</span></label>
+                    <input type="range" min="1" max="28" value="1" step="1" />
+                  </div>
+                  <!-- <figcaption>Sliding-window gate statistics.</figcaption> -->
+                </figure>
+              </div>
+              <div class="layer-mode-panel" data-mode="final" hidden>
+                <figure class="finding-layer" data-layer-prefix="assets/img/findings/nsa_modes/layer_" data-layer-suffix="_final" data-layer-ext=".png" data-layer-min="1" data-layer-max="28" data-layer-pad="2" data-layer-label="Final L">
+                  <img class="layer-frame" src="assets/img/findings/nsa_modes/layer_01_final.png" alt="Final gate behavior for layer L1" />
+                  <div class="layer-controls">
+                    <label><span class="layer-value">Final L1</span></label>
+                    <input type="range" min="1" max="28" value="1" step="1" />
+                  </div>
+                  <!-- <figcaption>Final gate mixture.</figcaption> -->
+                </figure>
+              </div>
+            </div>
+            <p><strong>What roles do the gates play across depth? Compression dominates across depth, selection and sliding window peak in early and middle layers before tapering, and all three intensify again at the final layer for late fusion. </strong>Compression serves as the backbone that reduces redundancy while preserving salient features. Selection and sliding window contribute more in early and middle layers, sometimes overtaking compression, then weaken as the model aggregates higher-level features. In the last layer, all three branches become strongly active again, indicating a late fusion stage.</p>
+            <figure class="finding-figure">
+              <img src="assets/img/findings/gate_comparison_all_layers.png" alt="Gate behavior across layers" />
+              <!-- <figcaption>Layer-wise gate behavior across compression, selection, and sliding-window branches.</figcaption> -->
+            </figure>
+            <p><strong>How similar are heads within each gate? In the middle layers, selection and sliding window show high inter-head similarity while compression remains diverse across heads, and at the first and final layers similarity is low for all gates.</strong> This mid-layer alignment suggests synchronized behaviors for block selection and local temporal integration. The compression gate maintains low inter-head similarity across depths, operating largely in a head-independent manner. Early and final layers keep inter-head similarity weak across all gates to preserve representational diversity and to support feature mixing at the top.</p>
+            <figure class="finding-layer" data-layer-prefix="assets/img/findings/gate_corr_L" data-layer-ext=".png" data-layer-min="0" data-layer-max="27" data-layer-pad="0" data-layer-label="Corr L">
+              <img class="layer-frame" src="assets/img/findings/gate_corr_L0.png" alt="Gate correlation for layer L0" />
+              <div class="layer-controls">
+                <label><span class="layer-value">Corr L0</span></label>
+                <input type="range" min="0" max="27" value="0" step="1" />
+              </div>
+              <!-- <figcaption>Head-wise gate correlation for the selected layer.</figcaption> -->
+            </figure>
+          </details>
+          <details class="finding-item">
+            <summary><span class="finding-number">05</span>Where does the efficiency bottleneck come from?</summary>
+            <div class="finding-split">
+              <div class="finding-split-text">
+                <p><strong>The compression branch is the primary latency bottleneck as context scales to 128K</strong>.</p>
+                <p>We measure <strong>wall-clock</strong> latency for each branch from 1K to 128K tokens and observe runtime becoming increasingly dominated by compression, while selection and sliding-window paths contribute only modestly at long horizons. Ideally compression grows roughly linearly with length <em>O(L)</em>, sliding windows behave like <em>O(L * w)</em>, and selection incurs <em>O(L<sup>2</sup> / b)</em> work for importance scoring over block size <em>b</em>. In practice, hardware parallelism, memory access, and kernel-launch overheads shift these curves, yet compression remains the limiting route, signalling that kernel and memory optimizations there would deliver the biggest wins.</p>
+              </div>
+              <figure class="finding-split-figure">
+                <img src="assets/img/findings/bottleneck.png" alt="Latency breakdown across branches" />
+                <figcaption>Branch-level latency contribution as sequence length grows.</figcaption>
+              </figure>
+            </div>
+          </details>
+          <details class="finding-item">
+            <summary><span class="finding-number">06</span>Do learnable sparse mechanisms induce attention sinks?</summary>
+            <p><strong>Attention sinks</strong> are tokens, often the first few in decoder-only Transformers, that attract a disproportionate share of attention regardless of content. They arise from softmax normalization and positional or initialization biases. Sinks typically show small key and value norms and large query activations, which leads to high cosine similarity and large attention weights while contributing little to the residual state because the value norms are low. This effect pulls probability mass away from informative tokens, weakens long-range information flow, and becomes more pronounced as context length increases.</p>
+            <figure class="finding-figure">
+              <img src="assets/img/findings/nsa_sink_overview.png" alt="Sink distribution overview" />
+              <figcaption>Average attention sinks distribution of different branches across layers.</figcaption>
+            </figure>
+            <p><strong>Learnable sparse mechanisms can induce dynamic attention sinks, but the effect is branch specific and controlled.</strong> Under the same sparse configuration with 256 tokens per frame, the <strong>compression</strong> branch produces the most sinks, forming banded patterns along the value-norm axis because token merging amplifies some norms while suppressing others. The <strong>selection</strong> branch yields almost no sinks because its top-<em>k</em> block filtering smooths the value-norm distribution. The <strong>sliding window</strong> branch reveals a clear split between sink and non-sink tokens and helps regularize norms. With <strong>dynamic gating</strong>, VideoNSA offsets compression-induced sinks and keeps the overall sink ratio near <em>0.3%</em>.</p>
+            <div class="finding-layer-toggle" data-default="sparse">
+              <div class="layer-mode-buttons">
+                <button class="layer-mode active" data-target="sparse">Sparse (VideoNSA)</button>
+                <button class="layer-mode" data-target="dense">Dense (FlashAttention)</button>
+              </div>
+              <div class="layer-mode-panel active" data-mode="sparse">
+                <figure class="finding-layer" data-layer-prefix="assets/img/findings/nsa_sink/layer_" data-layer-suffix="_nsa_branches" data-layer-ext=".png" data-layer-min="0" data-layer-max="27" data-layer-pad="2" data-layer-label="Sparse L">
+                  <img class="layer-frame" src="assets/img/findings/nsa_sink/layer_00_nsa_branches.png" alt="Sparse gate sinks for layer L0" />
+                  <div class="layer-controls">
+                    <label><span class="layer-value">Sparse L0</span></label>
+                    <input type="range" min="0" max="27" value="0" step="1" />
+                  </div>
+                  <!-- <figcaption>Per-layer sink heatmaps for VideoNSA's gated branches.</figcaption> -->
+                </figure>
+              </div>
+              <div class="layer-mode-panel" data-mode="dense" hidden>
+                <figure class="finding-layer" data-layer-prefix="assets/img/findings/dense_sink/layer_" data-layer-suffix="_all_heads_attention_sink" data-layer-ext=".png" data-layer-min="0" data-layer-max="27" data-layer-pad="1" data-layer-label="Dense L">
+                  <img class="layer-frame" src="assets/img/findings/dense_sink/layer_0_all_heads_attention_sink.png" alt="Dense attention sinks for layer L0" />
+                  <div class="layer-controls">
+                    <label><span class="layer-value">Dense L0</span></label>
+                    <input type="range" min="0" max="27" value="0" step="1" />
+                  </div>
+                  <!-- <figcaption>Per-layer sink heatmaps for dense FlashAttention.</figcaption> -->
+                </figure>
+              </div>
+            </div>
+            <p><strong>VideoNSA keeps sink ratios low and stable across layers, while dense attention and strict locality are more prone to sink accumulation.</strong> As depth increases, dense attention’s sink ratio climbs steadily. By branch, compression shows the highest levels with occasional spikes, selection remains near zero, and sliding window stays low but exhibits mid-to-late layer peaks, indicating that locality can reintroduce bias on long sequences. Learned sparsity and gating in VideoNSA prevent sink buildup at scale.</p>
+            <figure class="finding-figure finding-figure-small">
+              <img src="assets/img/findings/sink_layer.png" alt="Layer-wise sink ratios" />
+              <figcaption>Fraction of sink tokens per layer with VideoNSA gating.</figcaption>
+            </figure>
+            <p><strong>VideoNSA avoids both early-position bias and uniform diffusion, keeping sink positions controlled and structured.</strong> Dense attention spreads sinks broadly across the sequence. Compression concentrates sinks near the beginning with a steep decay. Selection yields very few sinks. Sliding window shows sparse peaks near periodic local boundaries. Dynamic gating smooths temporal coverage and mitigates over-reliance on early tokens.</p>
+            <figure class="finding-figure finding-figure-small">
+              <img src="assets/img/findings/sink_position.png" alt="Sink positions across depth" />
+              <figcaption>Sink probability by token position across branches and dense baselines.</figcaption>
+            </figure>
+            <p><strong>Sparse hyperparameters strongly shape sink position and density: compression is the main source, selection is largely immune, and balanced block/window choices trade early peaks for coverage.</strong> In the <strong>compression</strong> branch, smaller blocks create sharper, higher peaks at the sequence start, while larger blocks damp the initial spike but spread low-density sinks with periodic boundary bumps. The <strong>selection</strong> branch keeps densities near zero because top-k filtering reliably suppresses sinks. The <strong>sliding-window</strong> branch concentrates sinks near the first tokens and decays with depth; larger windows reduce overall density but broaden coverage. Training with w=256 offers a balanced profile, showing sparse periodic clusters mid-to-late sequence that mark learned local boundaries.</p>
+            <figure class="finding-figure finding-figure-small">
+              <img src="assets/img/findings/cmp_slc_32_64_16_128_cmp.png" alt="Compression branch sink heatmap across block sizes" />
+              <figcaption>Compression branch sink density under block-size settings 64×32 (sharp peak) and 128×16 (diffuse sinks).</figcaption>
+            </figure>
+            <figure class="finding-figure finding-figure-small">
+              <img src="assets/img/findings/cmp_slc_32_64_16_128_slc.png" alt="Selection branch sink heatmap across block sizes" />
+              <figcaption>Selection branch stays sink-free across the same block sweep thanks to top-k filtering.</figcaption>
+            </figure>
+            <figure class="finding-figure finding-figure-small">
+              <img src="assets/img/findings/window_sink.jpg" alt="Sliding window sink distribution across window sizes" />
+              <figcaption>Sliding-window branch sink profiles for different window sizes, highlighting periodic boundary spikes.</figcaption>
+            </figure>
+          </details>
+        </div>
+      </section>
+
+
+
+      <section id="previous-work" class="citation-block">
+        <div class="section-heading">
+          <h2>Previous Work</h2>
+        </div>
+        <ul class="previous-work-list">
+          <li>
+            <a class="work-link" href="https://github.com/rese1f/MovieChat" target="_blank" rel="noopener">
+              <span class="work-title">MovieChat</span>
+              <span class="work-meta">CVPR 2024</span>
+            </a>
+            <span class="work-tag">Long Video</span>
+          </li>
+          <li>
+            <a class="work-link" href="https://arxiv.org/abs/2404.17176" target="_blank" rel="noopener">
+              <span class="work-title">MovieChat+</span>
+              <span class="work-meta">TPAMI</span>
+            </a>
+            <span class="work-tag">Long Video</span>
+          </li>
+          <li>
+            <a class="work-link" href="https://wenhaochai.com/aurora-web/" target="_blank" rel="noopener">
+              <span class="work-title">AuroraCap</span>
+              <span class="work-meta">ICLR 2025</span>
+            </a>
+            <span class="work-tag">Detailed Caption</span>
+          </li>
+          <li>
+            <a class="work-link" href="https://arxiv.org/abs/2507.02591" target="_blank" rel="noopener">
+              <span class="work-title">AuroraLong</span>
+              <span class="work-meta">ICCV 2025</span>
+            </a>
+            <span class="work-tag">Long Video</span>
+          </li>
+          <li>
+            <a class="work-link" href="https://enxinsong.com/Video-MMLU-web/" target="_blank" rel="noopener">
+              <span class="work-title">Video-MMLU</span>
+              <span class="work-meta">ICCV 2025 Findings</span>
+            </a>
+            <span class="work-tag">Lecture Video</span>
+          </li>
+        </ul>
+      </section>
+
+
+
+      <section id="citation" class="citation-block">
+        <div class="section-heading">
+          <h2>BibTeX</h2>
+          <p>Temporary AuroraCap citation for convenient reference.</p>
+        </div>
+        <pre><code>@misc{chai2025auroracapefficientperformantvideo,
+      title={AuroraCap: Efficient, Performant Video Detailed Captioning and a New Benchmark},
+      author={Wenhao Chai and Enxin Song and Yilun Du and
+              Chenlin Meng and Vashisht Madhavan and Omer Bar-Tal and
+              Jenq-Neng Hwang and Saining Xie and Christopher D. Manning},
+      year={2025},
+      eprint={2410.03051},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2410.03051},
+}</code></pre>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <p>© 2025 VideoNSA Authors — Native Sparse Attention for Video Understanding.</p>
+      <a href="#top" class="back-to-top">Back to top ↑</a>
+    </footer>
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.finding-switch').forEach(block => {
+      const view = block.querySelector('.switch-view img');
+      const caption = block.querySelector('.switch-view figcaption');
+      block.querySelectorAll('.switch-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          block.querySelectorAll('.switch-tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const src = btn.dataset.src;
+          const text = btn.dataset.caption;
+          view.src = src;
+          view.alt = `${text} visualization`;
+          caption.textContent = text;
+        });
+      });
+    });
+
+    const padValue = (value, pad) => {
+      const str = String(Math.trunc(value));
+      return pad > 0 ? str.padStart(pad, '0') : str;
+    };
+
+    const updateLayerFigure = (wrapper, val) => {
+      const img = wrapper.querySelector('.layer-frame');
+      const label = wrapper.querySelector('.layer-value');
+      const prefix = wrapper.dataset.layerPrefix || '';
+      const ext = wrapper.dataset.layerExt || '.png';
+      const suffix = wrapper.dataset.layerSuffix || '';
+      const pad = Number(wrapper.dataset.layerPad || 0);
+      const labelPrefix = wrapper.dataset.layerLabel || 'L';
+      const value = Number(val);
+      const token = padValue(value, pad);
+      img.src = `${prefix}${token}${suffix}${ext}`;
+      img.alt = `${labelPrefix}${value} visualization`;
+      label.textContent = `${labelPrefix}${value}`;
+    };
+
+    document.querySelectorAll('.finding-layer').forEach(wrapper => {
+      const slider = wrapper.querySelector('input[type="range"]');
+      if (slider) {
+        updateLayerFigure(wrapper, slider.value);
+        slider.addEventListener('input', () => updateLayerFigure(wrapper, slider.value));
+      }
+    });
+
+    document.querySelectorAll('.finding-layer-toggle').forEach(toggle => {
+      const defaultMode = toggle.dataset.default || 'sparse';
+      const buttons = toggle.querySelectorAll('.layer-mode');
+      const panels = toggle.querySelectorAll('.layer-mode-panel');
+
+      const showMode = (mode) => {
+        panels.forEach(panel => {
+          const active = panel.dataset.mode === mode;
+          panel.hidden = !active;
+          panel.classList.toggle('active', active);
+          if (active) {
+            const slider = panel.querySelector('input[type="range"]');
+            if (slider) {
+              updateLayerFigure(panel.querySelector('.finding-layer'), slider.value);
+            }
+          }
+        });
+        buttons.forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.target === mode);
+        });
+      };
+
+      showMode(defaultMode);
+
+      buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          showMode(btn.dataset.target);
+        });
+      });
+    });
+  });
+</script>
+</body>
+</html>
