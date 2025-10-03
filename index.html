@@ -14,22 +14,28 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body id="top">
     <nav class="sidebar-nav">
-      <a href="#top" class="nav-item">Home</a>
-      <a href="#method" class="nav-item">Method</a>
-      <a href="#findings" class="nav-item nav-expandable">Findings</a>
-      <div class="nav-submenu">
-        <a href="#finding-01" class="nav-subitem">Dense Transfer</a>
-        <a href="#finding-02" class="nav-subitem">Context Scaling</a>
-        <a href="#finding-03" class="nav-subitem">Attention Scaling</a>
-        <a href="#finding-04" class="nav-subitem">Gate Roles</a>
-        <a href="#finding-05" class="nav-subitem">Bottleneck</a>
-        <a href="#finding-06" class="nav-subitem">Attention Sinks</a>
+      <div class="nav-shell">
+        <div class="nav-items">
+          <a href="#top" class="nav-item">Home</a>
+          <a href="#method" class="nav-item">Method</a>
+          <div class="nav-group">
+            <a href="#findings" class="nav-item nav-expandable" aria-expanded="false">Findings</a>
+            <div class="nav-submenu">
+              <a href="#finding-01" class="nav-subitem">Dense Transfer</a>
+              <a href="#finding-02" class="nav-subitem">Context Scaling</a>
+              <a href="#finding-03" class="nav-subitem">Attention Scaling</a>
+              <a href="#finding-04" class="nav-subitem">Gate Roles</a>
+              <a href="#finding-05" class="nav-subitem">Bottleneck</a>
+              <a href="#finding-06" class="nav-subitem">Attention Sinks</a>
+            </div>
+          </div>
+          <a href="#citation" class="nav-item">Citation</a>
+        </div>
       </div>
-      <a href="#citation" class="nav-item">Citation</a>
     </nav>
     <header class="hero">
       <div class="hero-content">
@@ -400,10 +406,14 @@
     const submenu = document.querySelector('.nav-submenu');
 
     if (findingsNav && submenu) {
+      findingsNav.setAttribute('aria-expanded', findingsNav.classList.contains('expanded') ? 'true' : 'false');
+
       findingsNav.addEventListener('click', (e) => {
         e.preventDefault();
-        findingsNav.classList.toggle('expanded');
-        submenu.classList.toggle('show');
+        const shouldExpand = !findingsNav.classList.contains('expanded');
+        findingsNav.classList.toggle('expanded', shouldExpand);
+        submenu.classList.toggle('show', shouldExpand);
+        findingsNav.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
       });
     }
 
