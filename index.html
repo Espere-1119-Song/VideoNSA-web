@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>VideoNSA | Native Sparse Attention Scales Video Understanding</title>
+    <title>VideoNSA: Native Sparse Attention Scales Video Understanding</title>
     <meta
       name="description"
       content="VideoNSA introduces Native Sparse Attention for multimodal LLMs, delivering six core findings on scaling, efficiency, and attention behavior in long-form video understanding."
@@ -17,23 +17,37 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body id="top">
+    <nav class="sidebar-nav">
+      <a href="#top" class="nav-item">Home</a>
+      <a href="#method" class="nav-item">Method</a>
+      <a href="#findings" class="nav-item nav-expandable">Findings</a>
+      <div class="nav-submenu">
+        <a href="#finding-01" class="nav-subitem">Dense Transfer</a>
+        <a href="#finding-02" class="nav-subitem">Context Scaling</a>
+        <a href="#finding-03" class="nav-subitem">Attention Scaling</a>
+        <a href="#finding-04" class="nav-subitem">Gate Roles</a>
+        <a href="#finding-05" class="nav-subitem">Bottleneck</a>
+        <a href="#finding-06" class="nav-subitem">Attention Sinks</a>
+      </div>
+      <a href="#citation" class="nav-item">Citation</a>
+    </nav>
     <header class="hero">
       <div class="hero-content">
         <div class="hero-copy">
-          <h1>Native Sparse Attention Scales<br />Video Understanding</h1>
+          <h1>VideoNSA: Native Sparse Attention Scales Video Understanding</h1>
           <div class="hero-body">
             <p>
-              Key moments in video surface without warning, yet current pipelines sample about 1 fps while humans perceive near 60 Hz. Adding frames helps on long, complex sequences but explodes tokens and hits context limits. We present VideoNSA, the first learnable, hardware-aware sparse-attention framework purpose-built for video. Building on Native Sparse Attention, it learns sparsity over video tokens while retaining grouped-query attention for text, scaling to 128K vision–text contexts and preserving decisive-moment fidelity and long-range coherence.
+              Key moments in video arrive unexpectedly, demanding models that see fast and think long. VideoNSA is the first learnable, hardware-aware sparse-attention framework built for video. It learns native sparsity patterns over tokens while preserving grouped-query attention for text, enabling scaling to 128K vision–text contexts with decisive-moment fidelity and long-range coherence.
             </p>
             <div class="hero-visual hero-visual-inline">
               <img src="assets/img/VideoNSA.png" alt="VideoNSA architecture overview" />
             </div>
           </div>
           <div class="hero-actions">
-            <a class="cta primary" href="../main.pdf">Download Paper (PDF)</a>
-            <a class="cta secondary" href="https://huggingface.co/VideoNSA" target="_blank" rel="noopener">Model</a>
-            <a class="cta secondary" href="https://github.com/VideoNSA" target="_blank" rel="noopener">Code</a>
-            <a class="cta secondary" href="https://arxiv.org/abs/2501.01234" target="_blank" rel="noopener">arXiv</a>
+            <a class="cta primary" href="https://arxiv.org/pdf/2510.02295">Download Paper (PDF)</a>
+            <a class="cta secondary" href="https://huggingface.co/Enxin/VideoNSA" target="_blank" rel="noopener">Model</a>
+            <a class="cta secondary" href="https://github.com/Espere-1119-Song/VideoNSA" target="_blank" rel="noopener">Code</a>
+            <a class="cta secondary" href="https://arxiv.org/abs/2510.02295" target="_blank" rel="noopener">arXiv</a>
             <a class="cta secondary" href="#findings">Jump to Findings</a>
           </div>
         </div>
@@ -87,17 +101,6 @@
           <img src="assets/school/lambda_logo_horizontal_black_with_white_glow.svg" alt="Lambda, Inc." />
         </div>
       </section>
-      <section id="introduction" class="section soft">
-        <div class="section-heading">
-          <h2>Contributions</h2>
-        </div>
-        <ul class="contrib-list">
-          <li>Introduce VideoNSA, a hardware-aware learnable sparse attention framework that scales vision contexts to 128K tokens.</li>
-          <li>Design a hybrid allocation strategy that dynamically balances compression, selection, and sliding-window branches to match task needs.</li>
-          <li>Demonstrate that branch-specific gating reduces attention sinks and keeps visual evidence flowing through deep layers.</li>
-        </ul>
-      </section>
-
       <section id="method" class="section">
         <div class="section-heading">
           <h2>Method</h2>
@@ -140,14 +143,14 @@
           <h2>Key Findings</h2>
         </div>
         <div class="finding-accordion">
-          <details class="finding-item">
+          <details class="finding-item" open id="finding-01">
             <summary><span class="finding-number">01</span>Do learned sparse attention weights remain beneficial in dense attention settings?</summary>
             <p><strong>Yes, but only partially. Sparse-trained QKV weights help under dense inference.</strong> The transferred Dense-NSA often surpasses Dense-SFT, indicating an inductive bias toward better attention distributions. However, gains are limited and inconsistent. The full VideoNSA with runtime sparsity and dynamic gating remains best, showing that improvements come from learned weights plus execution-time sparsity, not weight transfer alone.</p>
             <figure class="finding-table">
                             <iframe src="tab/nsa2full.html" title="Dense vs sparse performance" loading="lazy"></iframe>
             </figure>
           </details>
-          <details class="finding-item">
+          <details class="finding-item" open id="finding-02">
             <summary><span class="finding-number">02</span>How far can VideoNSA scale in context length?</summary>
             <p><strong>VideoNSA scales reliably to 128K vision–text contexts, with task-dependent budgeting.</strong> Trained at a smaller budget of 36K, VideoNSA generalizes beyond its training length and continues to improve as context grows. Under a fixed budget, the optimal split is task dependent: benchmarks emphasizing spatial detail prefer more tokens per frame, those emphasizing temporal coverage prefer more frames, and mixed settings show shifting preferences as length increases. This indicates that longer contexts benefit VideoNSA while it adapts to diverse spatiotemporal demands.</p>
             <div class="finding-switch" data-default-caption="LongTimeScope" data-default-src="assets/img/findings/token_longtime.png">
@@ -165,7 +168,7 @@
               </figure>
             </div>
           </details>
-          <details class="finding-item">
+          <details class="finding-item" open id="finding-03">
             <summary><span class="finding-number">03</span>How to allocate the attention budget?</summary>
             <p><strong>Allocate toward global attention and tune near the training allocation.</strong> Model performance is highly sensitive to how the attention budget is split between global blocks and local sliding windows. Across tasks, settings close to the training ratio generally work best, and small fine-tunes around it help more than simply enlarging the overall budget. Under the same budget, increasing global attention typically outperforms increasing local attention. <strong>VideoNSA attains leading performance with only 3.6% of the full attention budget.</strong></p>
             <div class="finding-switch finding-switch-large" data-default-caption="LongTimeScope" data-default-src="assets/img/findings/longtime_attention.png">
@@ -183,7 +186,7 @@
               </figure>
             </div>
           </details>
-          <details class="finding-item">
+          <details class="finding-item" open id="finding-04">
             <summary><span class="finding-number">04</span>What roles do compression, selection, and sliding-window gates play in VideoNSA?</summary>
             <p><strong>Compression Branch</strong> merges redundant tokens to preserve salient content and support long-range aggregation, <strong>Selection Branch</strong> routes attention sparsely to the most informative blocks for global context, and <strong>Sliding Window Branch</strong> enforces local temporal coverage and smooth frame-to-frame integration. <strong>Final Blend</strong> uses dynamic gates to mix these signals per head and layer.</p>
             <div class="finding-layer-toggle" data-default="compression">
@@ -249,7 +252,7 @@
               <!-- <figcaption>Head-wise gate correlation for the selected layer.</figcaption> -->
             </figure>
           </details>
-          <details class="finding-item">
+          <details class="finding-item" open id="finding-05">
             <summary><span class="finding-number">05</span>Where does the efficiency bottleneck come from?</summary>
             <div class="finding-split">
               <div class="finding-split-text">
@@ -262,7 +265,7 @@
               </figure>
             </div>
           </details>
-          <details class="finding-item">
+          <details class="finding-item" open id="finding-06">
             <summary><span class="finding-number">06</span>Do learnable sparse mechanisms induce attention sinks?</summary>
             <p><strong>Attention sinks</strong> are tokens, often the first few in decoder-only Transformers, that attract a disproportionate share of attention regardless of content. They arise from softmax normalization and positional or initialization biases. Sinks typically show small key and value norms and large query activations, which leads to high cosine similarity and large attention weights while contributing little to the residual state because the value norms are low. This effect pulls probability mass away from informative tokens, weakens long-range information flow, and becomes more pronounced as context length increases.</p>
             <figure class="finding-figure">
@@ -373,18 +376,15 @@
       <section id="citation" class="citation-block">
         <div class="section-heading">
           <h2>BibTeX</h2>
-          <p>Temporary AuroraCap citation for convenient reference.</p>
         </div>
-        <pre><code>@misc{chai2025auroracapefficientperformantvideo,
-      title={AuroraCap: Efficient, Performant Video Detailed Captioning and a New Benchmark},
-      author={Wenhao Chai and Enxin Song and Yilun Du and
-              Chenlin Meng and Vashisht Madhavan and Omer Bar-Tal and
-              Jenq-Neng Hwang and Saining Xie and Christopher D. Manning},
+        <pre><code>@misc{song2025videonsanativesparseattention,
+      title={VideoNSA: Native Sparse Attention Scales Video Understanding},
+      author={Enxin Song and Wenhao Chai and Shusheng Yang and Ethan Armand and Xiaojun Shan and Haiyang Xu and Jianwen Xie and Zhuowen Tu},
       year={2025},
-      eprint={2410.03051},
+      eprint={2510.02295},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2410.03051},
+      url={https://arxiv.org/abs/2510.02295},
 }</code></pre>
       </section>
 
@@ -392,10 +392,22 @@
 
     <footer class="footer">
       <p>© 2025 VideoNSA Authors — Native Sparse Attention for Video Understanding.</p>
-      <a href="#top" class="back-to-top">Back to top ↑</a>
     </footer>
   <script>
   document.addEventListener('DOMContentLoaded', () => {
+    // Sidebar submenu toggle
+    const findingsNav = document.querySelector('.nav-expandable');
+    const submenu = document.querySelector('.nav-submenu');
+
+    if (findingsNav && submenu) {
+      findingsNav.addEventListener('click', (e) => {
+        e.preventDefault();
+        findingsNav.classList.toggle('expanded');
+        submenu.classList.toggle('show');
+      });
+    }
+
+
     document.querySelectorAll('.finding-switch').forEach(block => {
       const view = block.querySelector('.switch-view img');
       const caption = block.querySelector('.switch-view figcaption');
